@@ -170,6 +170,29 @@ public class MainActivity extends Activity {
             }
             return true;
         }
+        // 媒体键被系统 MediaSession 拦截（实测 KEYCODE_MEDIA_PLAY_PAUSE 到不了 WebView），
+        // 改为 JS 直接控制 <audio>/<video>。空格键同理，Folia 全局快捷键监听 document keydown。
+        if (event.getAction() == KeyEvent.ACTION_DOWN) {
+            switch (event.getKeyCode()) {
+                case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
+                    webView.evaluateJavascript(
+                            "var v=document.querySelector('video,audio');" +
+                            "if(v){v.paused?v.play():v.pause();}", null);
+                    return true;
+                case KeyEvent.KEYCODE_MEDIA_NEXT:
+                    webView.evaluateJavascript(
+                            "document.dispatchEvent(new KeyboardEvent('keydown',{" +
+                            "key:'ArrowRight',code:'ArrowRight',keyCode:39,which:39," +
+                            "bubbles:true,cancelable:true}));", null);
+                    return true;
+                case KeyEvent.KEYCODE_MEDIA_PREVIOUS:
+                    webView.evaluateJavascript(
+                            "document.dispatchEvent(new KeyboardEvent('keydown',{" +
+                            "key:'ArrowLeft',code:'ArrowLeft',keyCode:37,which:37," +
+                            "bubbles:true,cancelable:true}));", null);
+                    return true;
+            }
+        }
         return super.dispatchKeyEvent(event);
     }
 

@@ -58,4 +58,5 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 - 云盘歌曲无封面/歌词元数据 → 全屏可视化区呈黑屏+进度条（正常，官方曲库歌曲有完整歌词视图）
 - ~~全屏播放视图按返回会退到桌面~~（已修复：BACK 转页面原生 Escape，由 Folia 自己退出播放视图/关闭弹层；页面无层可关时才退桌面）
 - ~~搜索提交后系统软键盘不收起、遮挡搜索结果~~（已修复：tvnav.js 监听路由进入 `#search/` 时自动 blur 输入框）
+- ~~播放/暂停键被系统 MediaSession 拦截、无法控制 WebView 音频~~（已修复：壳拦截媒体键，JS 直接控制 `<audio>`；上一首/下一首映射为方向键）
 - 两个 Mac 服务为前台进程，Mac 需保持唤醒；开机自启需自行配置 launchd
