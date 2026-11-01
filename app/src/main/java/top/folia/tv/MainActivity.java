@@ -148,17 +148,47 @@ public class MainActivity extends Activity {
                 .show();
     }
 
+    private boolean menuLongPressed = false;
+
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         // 方向键/确认键不拦截：透传给 WebView，由 Chromium 生成 trusted Arrow*/Enter
         // 键盘事件，驱动 Folia 页面自带的键盘导航（React 对 synthetic 事件不响应）。
-        if (event.getAction() == KeyEvent.ACTION_DOWN
-                && event.getKeyCode() == KeyEvent.KEYCODE_MENU) {
-            showServerSetup(false);
+        if (event.getKeyCode() == KeyEvent.KEYCODE_MENU) {
+            if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+                menuLongPressed = false;
+                event.startTracking();
+                return true;
+            }
+            if (event.getAction() == KeyEvent.ACTION_UP) {
+                if (!menuLongPressed && !event.isCanceled()) {
+                    // 短按菜单键（未触发长按）→ 服务地址设置
+                    showServerSetup(false);
+                }
+                menuLongPressed = false;
+                return true;
+            }
             return true;
         }
         return super.dispatchKeyEvent(event);
     }
+
+    @Override
+    public boolean onKeyLongPress(int keyCode, KeyEvent event) {
+        if (keyCode == KeyEvent.KEYCODE_MENU) {
+            menuLongPressed = true;
+            // 长按菜单键 → 打开 Folia 命令面板（synthetic Ctrl+K，
+            // Folia 命令面板监听 document keydown，不区分 trusted/synthetic）
+            webView.evaluateJavascript(
+                    "document.dispatchEvent(new KeyboardEvent('keydown',{" +
+                    "key:'k',code:'KeyK',keyCode:75,which:75,ctrlKey:true," +
+                    "bubbles:true,cancelable:true}));", null);
+            return true;
+        }
+        return super.onKeyLongPress(keyCode, event);
+    }
+
+    // 菜单键 UP 已在 dispatchKeyEvent 处理，不再走 onKeyUp
 
     @Override
     public void onBackPressed() {
