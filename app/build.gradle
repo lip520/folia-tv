@@ -1,0 +1,16 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'top.folia.tv'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'top.folia.tv'
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName '0.1.0'
+    }
+}
