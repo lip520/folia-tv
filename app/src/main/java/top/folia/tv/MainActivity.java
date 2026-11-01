@@ -162,17 +162,39 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        // 优先让页面关闭弹层；无弹层则后退；再无可后退才退到桌面
+        // 返回键 → trusted Escape 透传给页面：Folia 自己的键盘桥会处理
+        // 关弹层/命令面板/退出全屏播放视图（React 只认 trusted 事件，
+        // 此前 tvNav.escape() 派发的 synthetic 事件到不了业务层，实测无效）。
+        //
+        // 但「页面收到 ESC」≠「页面处理了 ESC」：顶层主页也会收到但不做任何事。
+        // 所以先用 MutationObserver 观察 ESC 之后 450ms 内有没有节点增删：
+        //   - 有 → 页面真的关了某个层/切了视图 → 留在 App
+        //   - 无 → 页面无事可做 → 后退或退桌面
         webView.evaluateJavascript(
-                "window.tvNav ? tvNav.escape() : 'nav-missing'", value -> {
-                    boolean handled = value != null && value.contains("\"handled\"");
-                    if (handled) return;
+                "window.__tvEscDirty=false;" +
+                "if(window.__tvEscObs)window.__tvEscObs.disconnect();" +
+                "window.__tvEscObs=new MutationObserver(function(ms){" +
+                "for(var i=0;i<ms.length;i++){var m=ms[i];" +
+                "if(m.type==='childList'&&(m.addedNodes.length+m.removedNodes.length)>0){" +
+                "window.__tvEscDirty=true;break;}}});" +
+                "window.__tvEscObs.observe(document.documentElement,{childList:true,subtree:true});'armed'",
+                null);
+
+        long now = android.os.SystemClock.uptimeMillis();
+        webView.dispatchKeyEvent(new KeyEvent(now, now, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ESCAPE, 0));
+        webView.dispatchKeyEvent(new KeyEvent(now, now, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ESCAPE, 0));
+
+        webView.postDelayed(() -> webView.evaluateJavascript(
+                "window.__tvEscObs&&window.__tvEscObs.disconnect();String(!!window.__tvEscDirty)",
+                value -> {
+                    boolean pageConsumed = value != null && value.contains("true");
+                    if (pageConsumed) return;
                     if (webView.canGoBack()) {
                         webView.goBack();
                     } else {
                         moveTaskToBack(true);
                     }
-                });
+                }), 450);
     }
 
     @Override
