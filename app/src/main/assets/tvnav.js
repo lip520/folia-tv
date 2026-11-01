@@ -158,6 +158,14 @@
         if (location.href !== lastUrl) {
             lastUrl = location.href;
             if (current && !document.contains(current)) current = null;
+            // 搜索提交后路由进入 #search/...，blur 输入框收起系统 IME，
+            // 否则软键盘会一直盖住搜索结果（真实遥控器流程实测复现）
+            if (location.hash.indexOf('#search/') === 0) {
+                var ae = document.activeElement;
+                if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')) {
+                    ae.blur();
+                }
+            }
         }
         if (current && !document.contains(current)) current = null;
     }).observe(document.documentElement, { childList: true, subtree: true });
