@@ -1,0 +1,187 @@
+--- a/index.html	2026-11-02 05:17:11
++++ b/index.html	2026-11-02 06:12:02
+@@ -138,6 +138,36 @@
+         }
+       }
+     </style>
++  <script>
++    // Folia TV：Chrome 83 WebView 缺少的新 API 统一 polyfill
++    if (!Object.hasOwn) Object.hasOwn = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
++    if (!Array.prototype.at) Array.prototype.at = function (n) { n = Math.trunc(n) || 0; if (n < 0) n += this.length; return (n >= 0 && n < this.length) ? this[n] : undefined; };
++    if (!Array.prototype.findLast) Array.prototype.findLast = function (fn, t) { for (let i = this.length - 1; i >= 0; i--) if (fn.call(t, this[i], i, this)) return this[i]; };
++    if (!Array.prototype.findLastIndex) Array.prototype.findLastIndex = function (fn, t) { for (let i = this.length - 1; i >= 0; i--) if (fn.call(t, this[i], i, this)) return i; return -1; };
++    if (!String.prototype.replaceAll) String.prototype.replaceAll = function (s, r) { return s instanceof RegExp ? this.replace(new RegExp(s.source, s.flags.includes('g') ? s.flags : s.flags + 'g'), r) : this.split(s).join(r); };
++    if (!Promise.any) Promise.any = (it) => Promise.all(Array.from(it).map(p => Promise.resolve(p).then(v => { throw v; }, v => v))).then(e => { throw new AggregateError(e, 'All promises were rejected'); }, v => v);
++    if (typeof structuredClone !== 'function') window.structuredClone = (v) => v === undefined ? undefined : JSON.parse(JSON.stringify(v));
++    if (!Element.prototype.replaceChildren) Element.prototype.replaceChildren = function (...nodes) { while (this.firstChild) this.removeChild(this.firstChild); this.append(...nodes); };
++    if (!crypto.randomUUID) crypto.randomUUID = () => '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, c => (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16));
++    if (typeof Intl !== 'undefined' && typeof Intl.Segmenter !== 'function') {
++      Intl.Segmenter = class Segmenter {
++        constructor(locale, options) { this.locale = locale; this.options = options || {}; }
++        segment(str) {
++          const items = [];
++          let i = 0;
++          const word = this.options.granularity === 'word';
++          for (const ch of String(str)) {
++            const seg = { segment: ch, index: i };
++            if (word) seg.isWordLike = /[\p{L}\p{N}]/u.test(ch);
++            items.push(seg);
++            i += ch.length;
++          }
++          items.containing = (n) => items.find((s, k) => n >= s.index && (k === items.length - 1 || n < items[k + 1].index));
++          return items;
++        }
++      };
++    }
++  </script>
+ </head>
+   <body>
+     <div id="app-splash" role="status" aria-live="polite" aria-label="Loading Folia">
+--- a/package.json	2026-11-02 05:17:12
++++ b/package.json	2026-11-02 06:59:44
+@@ -18,7 +18,7 @@
+   "scripts": {
+     "dev": "vite",
+     "dev:probe": "vite --open /dev-probe.html",
+-    "build": "npm run build:vercel-api && vite build",
++    "build": "npm run build:vercel-api && vite build && node scripts/fix-css-tv.mjs",
+     "build:vercel-api": "tsc -p api-ts/tsconfig.json",
+     "preview": "vite preview",
+     "typecheck": "tsc --noEmit",
+--- a/vite.config.ts	2026-11-02 05:17:12
++++ b/vite.config.ts	2026-11-02 06:09:19
+@@ -218,6 +218,8 @@
+       include: ['music-metadata'],
+     },
+     build: {
++      // Folia TV：坚果投影的 WebView 只有 Chrome 83，降到 es2020 目标
++      target: 'chrome83',
+       rollupOptions: {
+         input: {
+           main: 'index.html',
+--- a/src/utils/lyrics/textDirection.ts	2026-11-02 05:17:12
++++ b/src/utils/lyrics/textDirection.ts	2026-11-02 06:18:44
+@@ -6,7 +6,20 @@
+ // Scripts written right to left. A letter from any other script is strong left-to-right; digits,
+ // punctuation and spaces are neutral and skipped, like the first-strong rule of the Unicode
+ // bidi algorithm (and the browser's dir="auto").
+-const RTL_LETTER_RE = /[\p{Script=Arabic}\p{Script=Hebrew}\p{Script=Syriac}\p{Script=Thaana}\p{Script=Nko}\p{Script=Samaritan}\p{Script=Mandaic}\p{Script=Adlam}\p{Script=Hanifi_Rohingya}\p{Script=Yezidi}]/u;
++// Folia TV：Chrome 83 不认识 Yezidi / Hanifi_Rohingya / Adlam 等较新的脚本名，
++// 正则字面量会在解析期让整个模块崩掉，这里改用 new RegExp 运行时构造 + 区间兜底。
++const RTL_LETTER_RE: RegExp = (() => {
++    try {
++        return new RegExp(
++            '[\\p{Script=Arabic}\\p{Script=Hebrew}\\p{Script=Syriac}\\p{Script=Thaana}\\p{Script=Nko}\\p{Script=Samaritan}\\p{Script=Mandaic}\\p{Script=Adlam}\\p{Script=Hanifi_Rohingya}\\p{Script=Yezidi}]',
++            'u'
++        );
++    } catch {
++        // 基础 RTL 区间：希伯来、阿拉伯（含补充/扩展-A）、叙利亚、它拿、西非书面文字、
++        // 撒玛利亚、曼达、希伯来/阿拉伯表现形式、阿德拉姆（增补平面）
++        return /[\u0590-\u05FF\u0600-\u06FF\u0700-\u074F\u0750-\u077F\u0780-\u07BF\u07C0-\u07FF\u0800-\u083F\u0840-\u085F\u08A0-\u08FF\uFB1D-\uFB4F\uFB50-\uFDFF\uFE70-\uFEFF\u{1E900}-\u{1E94F}]/u;
++    }
++})();
+ const LETTER_RE = /\p{L}/u;
+ 
+ /**
+--- /dev/null	2026-11-02 07:07:54
++++ b/scripts/fix-css-tv.mjs	2026-11-02 06:29:25
+@@ -0,0 +1,99 @@
++// Folia TV：把 dist 里的 CSS 降到坚果投影 Chrome 83 WebView 可解析的水平
++// 1) 解包 @layer 块（Chrome 99-，整块会被丢弃）
++// 2) :where(SEL) → SEL、:is(SEL) → :-webkit-any(SEL)（Chrome 88- 不认识这两个伪类）
++// 3) LightningCSS 处理 color-mix / inset 简写等（目标 Chrome 83）
++import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
++import { join } from 'node:path';
++import { transform } from 'lightningcss';
++
++// 提取从 openIdx（'(' 的位置）开始的平衡括号内容，返回 [inner, endIdx)
++const extractParens = (css, openIdx) => {
++    let depth = 0;
++    for (let j = openIdx; j < css.length; j++) {
++        const c = css[j];
++        if (c === '(') depth++;
++        else if (c === ')') {
++            depth--;
++            if (depth === 0) return [css.slice(openIdx + 1, j), j + 1];
++        }
++    }
++    return [css.slice(openIdx + 1), css.length];
++};
++
++const replacePseudoFns = (input, name, replacement) => {
++    let res = '', i = 0;
++    const needle = name + '(';
++    while (i < input.length) {
++        const idx = input.indexOf(needle, i);
++        if (idx === -1) { res += input.slice(i); break; }
++        const [inner, end] = extractParens(input, idx + name.length);
++        res += input.slice(i, idx) + replacement(inner);
++        i = end;
++    }
++    return res;
++};
++
++const unwrapPseudoFns = (css) => {
++    let out = css, prev;
++    do {
++        prev = out;
++        out = replacePseudoFns(out, ':where', (inner) => inner);
++        out = replacePseudoFns(out, ':is', (inner) => `:-webkit-any(${inner})`);
++    } while (out !== prev);
++    return out;
++};
++
++const unwrapLayers = (css) => {
++    let out = '', i = 0;
++    while (i < css.length) {
++        const rest = css.slice(i);
++        const m = /@layer\b/.exec(rest);
++        if (!m) { out += rest; break; }
++        const start = i + m.index;
++        const brace = css.indexOf('{', start);
++        const semi = css.indexOf(';', start);
++        out += css.slice(i, start);
++        if (semi !== -1 && (brace === -1 || semi < brace)) {
++            // 语句形式 @layer a, b; —— 层级声明，删除即可（块都按源码顺序展开）
++            i = semi + 1;
++            continue;
++        }
++        let depth = 0, j = brace;
++        for (; j < css.length; j++) {
++            if (css[j] === '{') depth++;
++            else if (css[j] === '}') { depth--; if (depth === 0) break; }
++        }
++        out += css.slice(brace + 1, j);
++        i = j + 1;
++    }
++    return out;
++};
++
++const dir = new URL('../dist/assets/', import.meta.url).pathname;
++let total = 0;
++for (const name of readdirSync(dir)) {
++    if (!name.endsWith('.css')) continue;
++    const p = join(dir, name);
++    const raw = readFileSync(p, 'utf8');
++    total++;
++    try {
++        const manual = unwrapPseudoFns(unwrapLayers(raw));
++        const res = transform({
++            filename: name,
++            code: Buffer.from(manual),
++            minify: true,
++            errorRecovery: true,
++            targets: { chrome: 83 << 16 },
++        });
++        // inset 简写是 Chrome 87+；LC 不展开带 var()/calc 的值，手动展开为四向写法
++        const css = res.code.toString().replace(
++            /(^|[;{])inset:([^;}]+)/g,
++            (_, pre, v) => `${pre}top:${v};right:${v};bottom:${v};left:${v}`
++        );
++        writeFileSync(p, css);
++    } catch (e) {
++        console.error(`[fix-css-tv] ${name} failed: ${e.message}`);
++        process.exitCode = 1;
++    }
++}
++console.log(`[fix-css-tv] processed ${total} css files`);
