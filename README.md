@@ -50,7 +50,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 - 方向键：移动 / 滚动卡片；OK：打开 / 播放
 - 搜索框 OK 后弹出系统屏幕键盘，方向键选字、移到 GO 提交
-- 播放/暂停键：播放控制
+- 播放/暂停键：播放/暂停；上一首/下一首键：切歌（经命令面板执行）
 - 短按菜单键：服务地址设置；长按菜单键：打开命令面板（Ctrl+K）
 
 ## 已知问题
@@ -58,5 +58,6 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 - 云盘歌曲无封面/歌词元数据 → 全屏可视化区呈黑屏+进度条（正常，官方曲库歌曲有完整歌词视图）
 - ~~全屏播放视图按返回会退到桌面~~（已修复：BACK 转页面原生 Escape，由 Folia 自己退出播放视图/关闭弹层；页面无层可关时才退桌面）
 - ~~搜索提交后系统软键盘不收起、遮挡搜索结果~~（已修复：tvnav.js 监听路由进入 `#search/` 时自动 blur 输入框）
-- ~~播放/暂停键被系统 MediaSession 拦截、无法控制 WebView 音频~~（已修复：壳拦截媒体键，JS 直接控制 `<audio>`；上一首/下一首映射为方向键）
+- ~~播放/暂停键被系统 MediaSession 拦截、无法控制 WebView 音频~~（已修复：壳拦截媒体键，JS 直接控制 `<audio>`）
+- 上一首/下一首键通过命令面板执行（Folia 无全局切歌快捷键，仅命令面板内 `n`/`b`）；lattice 视图下命令面板可能被 Folia `isBlocked` 逻辑拦截导致切歌失败，主页/播放器视图下正常
 - 两个 Mac 服务为前台进程，Mac 需保持唤醒；开机自启需自行配置 launchd

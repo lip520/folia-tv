@@ -180,16 +180,10 @@ public class MainActivity extends Activity {
                             "if(v){v.paused?v.play():v.pause();}", null);
                     return true;
                 case KeyEvent.KEYCODE_MEDIA_NEXT:
-                    webView.evaluateJavascript(
-                            "document.dispatchEvent(new KeyboardEvent('keydown',{" +
-                            "key:'ArrowRight',code:'ArrowRight',keyCode:39,which:39," +
-                            "bubbles:true,cancelable:true}));", null);
+                    webView.evaluateJavascript("window.tvNav&&window.tvNav.nextTrack();", null);
                     return true;
                 case KeyEvent.KEYCODE_MEDIA_PREVIOUS:
-                    webView.evaluateJavascript(
-                            "document.dispatchEvent(new KeyboardEvent('keydown',{" +
-                            "key:'ArrowLeft',code:'ArrowLeft',keyCode:37,which:37," +
-                            "bubbles:true,cancelable:true}));", null);
+                    webView.evaluateJavascript("window.tvNav&&window.tvNav.prevTrack();", null);
                     return true;
             }
         }
@@ -201,9 +195,9 @@ public class MainActivity extends Activity {
         if (keyCode == KeyEvent.KEYCODE_MENU) {
             menuLongPressed = true;
             // 长按菜单键 → 打开 Folia 命令面板（synthetic Ctrl+K，
-            // Folia 命令面板监听 document keydown，不区分 trusted/synthetic）
+            // Folia 命令面板监听 window keydown，不区分 trusted/synthetic）
             webView.evaluateJavascript(
-                    "document.dispatchEvent(new KeyboardEvent('keydown',{" +
+                    "window.dispatchEvent(new KeyboardEvent('keydown',{" +
                     "key:'k',code:'KeyK',keyCode:75,which:75,ctrlKey:true," +
                     "bubbles:true,cancelable:true}));", null);
             return true;

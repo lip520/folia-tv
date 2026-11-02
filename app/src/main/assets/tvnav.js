@@ -170,7 +170,53 @@
         if (current && !document.contains(current)) current = null;
     }).observe(document.documentElement, { childList: true, subtree: true });
 
-    window.tvNav = { move: move, click: click, escape: escape, togglePlay: togglePlay };
+    // 切歌：Folia 播放器界面没有传统按钮，通过命令面板执行「下一首/上一首」。
+    // 注意：evaluateJavascript 的 synthetic Ctrl+K 在部分页面状态下可能打不开面板，
+    // 所以先尝试直接找「下一首/上一首」按钮，没有再走命令面板兜底。
+    function clickTrackButton(label) {
+        var btn = [].slice.call(document.querySelectorAll('button')).find(function (b) {
+            return (b.innerText || '').indexOf(label) !== -1;
+        });
+        if (btn) { btn.click(); return 'clicked'; }
+        return null;
+    }
+
+    function runPaletteCommand(keyword, matchText) {
+        // 1. 打开命令面板
+        window.dispatchEvent(new KeyboardEvent('keydown', {
+            key: 'k', code: 'KeyK', keyCode: 75, which: 75,
+            ctrlKey: true, bubbles: true, cancelable: true
+        }));
+        setTimeout(function () {
+            var input = document.querySelector('input[placeholder*="功能"], input[placeholder*="命令"], input[placeholder*="command"]');
+            if (!input) return;
+            // 2. 输入关键词
+            var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
+            if (setter && setter.set) {
+                setter.set.call(input, keyword);
+            } else {
+                input.value = keyword;
+            }
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            // 3. 点击匹配项
+            setTimeout(function () {
+                var btn = [].slice.call(document.querySelectorAll('button')).find(function (b) {
+                    return (b.innerText || '').indexOf(matchText) !== -1;
+                });
+                if (btn) btn.click();
+            }, 400);
+        }, 500);
+    }
+
+    window.tvNav = {
+        move: move, click: click, escape: escape, togglePlay: togglePlay,
+        nextTrack: function () {
+            if (!clickTrackButton('下一首')) runPaletteCommand('next', '下一首');
+        },
+        prevTrack: function () {
+            if (!clickTrackButton('上一首')) runPaletteCommand('prev', '上一首');
+        }
+    };
     injectCss();
     return 'tvnav-ready';
 })();
