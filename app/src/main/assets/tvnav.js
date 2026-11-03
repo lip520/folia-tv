@@ -6,15 +6,21 @@
     var current = null;
 
     var css = [
+        // 焦点描边只画 outline：box-shadow 模糊和 position/z-index 层提升在投影仪
+        // 弱 GPU 上每次焦点移动都是一次大面积重绘，实测掉帧明显
         '.' + FOCUS_CLASS + '{',
         '  outline: 3px solid #8B5CF6 !important;',
         '  outline-offset: 2px !important;',
-        '  box-shadow: 0 0 18px rgba(139,92,246,0.75) !important;',
         '  border-radius: 8px !important;',
-        '  position: relative !important;',
-        '  z-index: 1 !important;',
         '}',
-        '* { cursor: none !important; }'
+        '* { cursor: none !important; }',
+        // TV 性能三件套（投影仪 GPU/CPU 都弱，这些全是每帧重绘大户）：
+        // 1. backdrop-filter 每帧重采样整片背景；各元素自带半透明底色，去掉仍可读
+        '* { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }',
+        // 2. Lattice 全屏噪点叠层用 soft-light 混合，每帧全屏读回合成
+        '.lattice-root::after { display: none !important; }',
+        // 3. smooth scroll 在弱 CPU 上是逐帧 JS 动画，改瞬时
+        'html { scroll-behavior: auto !important; }'
     ].join('\n');
 
     function injectCss() {
@@ -69,7 +75,7 @@
         current = el;
         if (current) {
             current.classList.add(FOCUS_CLASS);
-            current.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+            current.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
             try { current.focus({ preventScroll: true }); } catch (e) {}
         }
     }
@@ -170,53 +176,7 @@
         if (current && !document.contains(current)) current = null;
     }).observe(document.documentElement, { childList: true, subtree: true });
 
-    // 切歌：Folia 播放器界面没有传统按钮，通过命令面板执行「下一首/上一首」。
-    // 注意：evaluateJavascript 的 synthetic Ctrl+K 在部分页面状态下可能打不开面板，
-    // 所以先尝试直接找「下一首/上一首」按钮，没有再走命令面板兜底。
-    function clickTrackButton(label) {
-        var btn = [].slice.call(document.querySelectorAll('button')).find(function (b) {
-            return (b.innerText || '').indexOf(label) !== -1;
-        });
-        if (btn) { btn.click(); return 'clicked'; }
-        return null;
-    }
-
-    function runPaletteCommand(keyword, matchText) {
-        // 1. 打开命令面板
-        window.dispatchEvent(new KeyboardEvent('keydown', {
-            key: 'k', code: 'KeyK', keyCode: 75, which: 75,
-            ctrlKey: true, bubbles: true, cancelable: true
-        }));
-        setTimeout(function () {
-            var input = document.querySelector('input[placeholder*="功能"], input[placeholder*="命令"], input[placeholder*="command"]');
-            if (!input) return;
-            // 2. 输入关键词
-            var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
-            if (setter && setter.set) {
-                setter.set.call(input, keyword);
-            } else {
-                input.value = keyword;
-            }
-            input.dispatchEvent(new Event('input', { bubbles: true }));
-            // 3. 点击匹配项
-            setTimeout(function () {
-                var btn = [].slice.call(document.querySelectorAll('button')).find(function (b) {
-                    return (b.innerText || '').indexOf(matchText) !== -1;
-                });
-                if (btn) btn.click();
-            }, 400);
-        }, 500);
-    }
-
-    window.tvNav = {
-        move: move, click: click, escape: escape, togglePlay: togglePlay,
-        nextTrack: function () {
-            if (!clickTrackButton('下一首')) runPaletteCommand('next', '下一首');
-        },
-        prevTrack: function () {
-            if (!clickTrackButton('上一首')) runPaletteCommand('prev', '上一首');
-        }
-    };
+    window.tvNav = { move: move, click: click, escape: escape, togglePlay: togglePlay };
     injectCss();
     return 'tvnav-ready';
 })();
